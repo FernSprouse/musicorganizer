@@ -78,7 +78,7 @@ def get_changelog(sdir: os.PathLike, tdir: os.PathLike, mkdir: bool = False) -> 
     return sources
 
 
-def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathLike, tsuffix: str = '.mp3') -> Sequence[str]:
+def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathLike, tsuffix: str = '.mp3', qscale: int = 0) -> Sequence[str]:
 
     # check that tdir is Path and dir
     tdir = Path(tdir)
@@ -89,6 +89,10 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
     sdir = Path(sdir)
     if not sdir.is_dir():
         raise NotADirectoryError(f'target directory {sdir} is not a directory')
+
+    # check that qscale between 0 and 9
+    if qscale < 0 or qscale > 9:
+        raise ValueError(f'qscale {qscale} out of bounds [0-9], see https://trac.ffmpeg.org/wiki/Encode/MP3 for more info')
 
     # iterate over each source to create a changelog list of tuples with proper extensions
     changes = [(sdir / f, tdir / Path(str(f)[:-len(f.suffix)] + tsuffix)) for f in sources]
@@ -107,12 +111,12 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
         if s.suffix == tsuffix:
             commands.append(' '.join(['cp', source_str, target_str]))
         else:
-            commands.append(' '.join(['ffmpeg', '-i', source_str, '-ab', '320k', '-map_metadata', '0', '-id3v2_version', '3', target_str]))
+            commands.append(' '.join(['ffmpeg', '-i', source_str, '-codec:a', 'libmp3lame', '-qscale:a', str(qscale), '-map_metadata', '0', '-id3v2_version', '3', target_str]))
 
     return commands
 
 
-def main(sdir: os.PathLike, tdir: os.PathLike) -> None:
+def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int) -> None:
 
     # interpret sdir and tdir with Path and expand user if possible
     sdir = Path(sdir).expanduser()
@@ -120,7 +124,13 @@ def main(sdir: os.PathLike, tdir: os.PathLike) -> None:
     tdir.mkdir(parents=True, exist_ok=True)
 
     # generate the commands to update tdir
-    commands = generate_commands(sources=get_changelog(sdir=sdir, tdir=tdir), sdir=sdir, tdir=tdir, tsuffix='.mp3')
+    commands = generate_commands(
+        sources=get_changelog(sdir=sdir, tdir=tdir),
+        sdir=sdir,
+        tdir=tdir,
+        tsuffix='.mp3',
+        qscale=qscale
+    )
 
     # run commands in multiprocessing pool
     print(f'converting {len(commands)} files from {sdir} to {tdir}')
@@ -142,10 +152,12 @@ if __name__ == '__main__':
     )
     parser.add_argument('sdir', type=Path)
     parser.add_argument('tdir', type=Path)
+    parser.add_argument('-q', '--qscale', type=int, default=2)
     args = parser.parse_args()
 
     # pass arguments to main function
     main(
         sdir=args.sdir,
         tdir=args.tdir,
+        qscale=args.qscale
     )
