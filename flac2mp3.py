@@ -2,7 +2,6 @@
 
 # flac2mp3.py
 # Script to convert a flac dir to mp3 dir
-# Option to create a "staged" dir for delivery to exFat/fat32 drives
 
 # imports
 import argparse
@@ -57,6 +56,11 @@ def get_changelog(sdir: os.PathLike, tdir: os.PathLike, mkdir: bool = False) -> 
     # for tdir, only search for .mp3 files
     tdir_ext = ['.mp3']
 
+    # TODO: make above an input option
+    # a flag for sdir extensions
+    # a flag for tdir extensions
+    # a flag for conversion extension (singular)
+
     # over each of sdir_files and tdir_files, remove the file extension
     # don't worry about generating duplicate file paths
     # set cast will clear them, then we prioritize entry 0 of sdir_ext when recombining
@@ -78,8 +82,12 @@ def get_changelog(sdir: os.PathLike, tdir: os.PathLike, mkdir: bool = False) -> 
     return sources
 
 
-def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathLike, tsuffix: str = '.mp3', qscale: int = 0) -> Sequence[str]:
+def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathLike, tsuffix: str = '.mp3', qscale: int = 0, diff_dir: os.PathLike | None = None) -> Sequence[str]:
 
+    # define the string cleaning function
+    def _file_to_term_str(f: Path) -> str:
+        return "\"" + str(f).replace(r'$', r'\$') + "\""
+    
     # check that tdir is Path and dir
     tdir = Path(tdir)
     if not tdir.is_dir():
@@ -104,8 +112,8 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
         t.parent.mkdir(parents=True, exist_ok=True)
 
         # handle special characters in s and t
-        source_str = "\"" + str(s).replace(r'$', r'\$') + "\""
-        target_str = "\"" + str(t).replace(r'$', r'\$') + "\""
+        source_str = _file_to_term_str(s)
+        target_str = _file_to_term_str(t)
 
         # check if source is already an mp3, if so just make a copy command
         if s.suffix == tsuffix:
@@ -113,15 +121,31 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
         else:
             commands.append(' '.join(['ffmpeg', '-i', source_str, '-codec:a', 'libmp3lame', '-qscale:a', str(qscale), '-map_metadata', '0', '-id3v2_version', '3', target_str]))
 
+        # check if a diff_dir is being generated
+        if diff_dir:
+            d_file = diff_dir / Path(str(t)[len(str(tdir)):])
+            d_file.parent.mkdir(parents=True, exist_ok=True)
+            d_str = _file_to_term_str(d_file)
+
+            # appending a second operation to the command instead of a second command
+            # because this is multiprocessed, the copy order *might* appear first if its alone
+            commands[-1] += (' '.join(['&&', 'cp', target_str, d_str]))
+
     return commands
 
 
-def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int) -> None:
+def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | None) -> None:
 
     # interpret sdir and tdir with Path and expand user if possible
     sdir = Path(sdir).expanduser()
     tdir = Path(tdir).expanduser()
     tdir.mkdir(parents=True, exist_ok=True)
+
+    # check for diff dir
+    diff_dir = None
+    if diff:
+        diff_dir = Path(diff).expanduser()
+        diff_dir.mkdir(parents=True, exist_ok=True)
 
     # generate the commands to update tdir
     commands = generate_commands(
@@ -129,7 +153,8 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int) -> None:
         sdir=sdir,
         tdir=tdir,
         tsuffix='.mp3',
-        qscale=qscale
+        qscale=qscale,
+        diff_dir=diff_dir
     )
 
     # run commands in multiprocessing pool
@@ -153,11 +178,13 @@ if __name__ == '__main__':
     parser.add_argument('sdir', type=Path)
     parser.add_argument('tdir', type=Path)
     parser.add_argument('-q', '--qscale', type=int, default=2)
+    parser.add_argument('-d', '--diff', type=Path, default=None)
     args = parser.parse_args()
 
     # pass arguments to main function
     main(
         sdir=args.sdir,
         tdir=args.tdir,
-        qscale=args.qscale
+        qscale=args.qscale,
+        diff=args.diff
     )
