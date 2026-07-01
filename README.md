@@ -1,0 +1,2 @@
+# Music Organizer
+This is a personal project to manage my FLAC library. It's main job is to create an mp3 library with the same structure in a parallel directory so I can move that (much) smaller dir to my phone & laptop. It does not manage or even read tags, just blindly duplicates them. It does, however, pick out the differences between the source dir of FLAC files and the target dir of mp3 files. It also does multiprocessing! Usually that's a needless distraction I walk down for funsies but it's actually quite useful when converting ~10^3 FLAC files to mp3s using ffmpeg.
