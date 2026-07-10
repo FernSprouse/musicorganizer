@@ -182,7 +182,8 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | 
     print(f'conversion complete with {exceptions} errors')
 
     # close log file
-    log_file.close()
+    if log_file:
+        log_file.close()
 
 
 if __name__ == '__main__':
