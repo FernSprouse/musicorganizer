@@ -134,7 +134,7 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
     return commands
 
 
-def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | None) -> None:
+def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | None, log: os.PathLike | None) -> None:
 
     # interpret sdir and tdir with Path and expand user if possible
     sdir = Path(sdir).expanduser()
@@ -147,6 +147,15 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | 
         diff_dir = Path(diff).expanduser()
         diff_dir.mkdir(parents=True, exist_ok=True)
 
+    # check for log file
+    log_file = None
+    if log:
+        log = Path(log).expanduser()
+        if log.exists():
+            log_file = log.open('a')
+        else:
+            log_file = log.open('w')
+
     # generate the commands to update tdir
     commands = generate_commands(
         sources=get_changelog(sdir=sdir, tdir=tdir),
@@ -156,6 +165,10 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | 
         qscale=qscale,
         diff_dir=diff_dir
     )
+
+    # write commands to log_file if exists
+    if log_file:
+        log_file.writelines(commands)
 
     # run commands in multiprocessing pool
     print(f'converting {len(commands)} files from {sdir} to {tdir}')
@@ -168,6 +181,9 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | 
                 print(f'command: {r.args}\nreturns: {r.returncode}\nout: {r.stdout.decode()}\nerr: {r.stderr.decode()}')
     print(f'conversion complete with {exceptions} errors')
 
+    # close log file
+    log_file.close()
+
 
 if __name__ == '__main__':
     # parse arguments for sdir, tdir, mkdir, overwrite
@@ -179,6 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('tdir', type=Path)
     parser.add_argument('-q', '--qscale', type=int, default=2)
     parser.add_argument('-d', '--diff', type=Path, default=None)
+    parser.add_argument('-l', '--log', type=Path, default=None)
     args = parser.parse_args()
 
     # pass arguments to main function
@@ -186,5 +203,6 @@ if __name__ == '__main__':
         sdir=args.sdir,
         tdir=args.tdir,
         qscale=args.qscale,
-        diff=args.diff
+        diff=args.diff,
+        log=args.log,
     )
