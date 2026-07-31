@@ -5,6 +5,7 @@
 
 # imports
 import argparse
+import datetime
 import os
 import subprocess
 
@@ -144,7 +145,7 @@ def main(sdir: os.PathLike, tdir: os.PathLike, qscale: int, diff: os.PathLike | 
     # check for diff dir
     diff_dir = None
     if diff:
-        diff_dir = Path(diff).expanduser()
+        diff_dir = Path(diff).expanduser() / datetime.date.today().strftime(r'%Y%b%d%H%M%S').lower()
         diff_dir.mkdir(parents=True, exist_ok=True)
 
     # check for log file
