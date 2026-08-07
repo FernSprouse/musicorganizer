@@ -124,7 +124,13 @@ def generate_commands(sources: Iterable[Path], sdir: os.PathLike, tdir: os.PathL
 
         # check if a diff_dir is being generated
         if diff_dir:
-            d_file = diff_dir / Path(str(t)[len(str(tdir)):])
+            # generate the sub dir to append to without leading /
+            sub_dir = str(t)[len(str(tdir)):]
+            if sub_dir[0] == '/':
+                sub_dir = sub_dir[1:]
+
+            d_file = Path(diff_dir) / sub_dir
+
             d_file.parent.mkdir(parents=True, exist_ok=True)
             d_str = _file_to_term_str(d_file)
 
